@@ -7,8 +7,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from scraper.smartchip import fetch_runner_data, SmartChipError
-from database import (
+from .scraper.smartchip import fetch_runner_data, SmartChipError
+from .database import (
     init_db,
     add_favorite,
     delete_favorite,
