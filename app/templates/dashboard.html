@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>즐겨찾기 대시보드</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <div class="top-nav">
+      <a href="/">← 검색으로 돌아가기</a>
+    </div>
+
+    <section class="card dashboard-header">
+      <div>
+        <h1>즐겨찾기 대시보드</h1>
+        <p class="sub">10초마다 자동 갱신돼. 새 기록이 들어오면 카드가 강조돼.</p>
+      </div>
+      <div class="refresh-area">
+        <div class="refresh-badge" id="refreshStatus">업데이트 대기 중</div>
+        <div class="refresh-time" id="lastUpdated">마지막 업데이트: {{ last_updated }}</div>
+      </div>
+    </section>
+
+    <section class="card filter-card">
+      <div class="filter-grid">
+        <div>
+          <label for="raceFilter" class="muted">대회 필터</label>
+          <select id="raceFilter">
+            <option value="">전체 대회</option>
+            {% for race_name in race_names %}
+            <option value="{{ race_name }}" {% if selected_race == race_name %}selected{% endif %}>{{ race_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label for="runnerSearch" class="muted">선수 검색</label>
+          <input id="runnerSearch" type="text" placeholder="이름 또는 배번 검색" value="{{ query_text }}">
+        </div>
+      </div>
+    </section>
+
+    {% if errors %}
+    <section class="card">
+      <h2>조회 실패</h2>
+      <ul>
+        {% for err in errors %}
+        <li>{{ err }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section id="dashboardCards" class="dashboard-grid">
+      {% if runners %}
+        {% for runner in runners %}
+        <article class="card runner-card {% if runner.is_updated %}updated pulse{% endif %}">
+          <div class="runner-card-top">
+            <div>
+              <div class="muted">{{ runner.race_name }}</div>
+              <h2>{{ runner.name }}</h2>
+            </div>
+            <div class="small-pill">배번 {{ runner.bib }}</div>
+          </div>
+
+          <div class="meta-row">
+            <span class="pill">{{ runner.category }}</span>
+            <span class="pill">페이스 {{ runner.pace or "-" }}</span>
+          </div>
+
+          <div class="card-time">{{ runner.official_time or "-" }}</div>
+
+          <div class="estimate-box">
+            <div class="muted">예상 완주 시간</div>
+            <div class="estimate-time">{{ runner.estimated_finish or "-" }}</div>
+          </div>
+
+          <div class="last-point">
+            마지막 구간: <strong>{{ runner.last_point or "-" }}</strong>
+          </div>
+
+          <div class="card-actions">
+            <a class="btn-link" href="/runner?keyword={{ runner.bib }}&usedata={{ runner.usedata }}">상세 보기</a>
+
+            <form action="/favorites/delete" method="post">
+              <input type="hidden" name="bib" value="{{ runner.bib }}">
+              <input type="hidden" name="usedata" value="{{ runner.usedata }}">
+              <button type="submit" class="danger-btn">삭제</button>
+            </form>
+          </div>
+        </article>
+        {% endfor %}
+      {% else %}
+        <section class="card">
+          <p>아직 즐겨찾기한 선수가 없어.</p>
+        </section>
+      {% endif %}
+    </section>
+  </main>
+
+  <script>
+    const raceFilter = document.getElementById("raceFilter");
+    const runnerSearch = document.getElementById("runnerSearch");
+    const refreshStatus = document.getElementById("refreshStatus");
+    const lastUpdated = document.getElementById("lastUpdated");
+    const dashboardCards = document.getElementById("dashboardCards");
+
+    function buildCard(runner) {
+      const updatedClass = runner.is_updated ? "updated pulse" : "";
+      const lastPoint = runner.last_point || "-";
+
+      return `
+        <article class="card runner-card ${updatedClass}">
+          <div class="runner-card-top">
+            <div>
+              <div class="muted">${runner.race_name || "-"}</div>
+              <h2>${runner.name || "-"}</h2>
+            </div>
+            <div class="small-pill">배번 ${runner.bib || "-"}</div>
+          </div>
+
+          <div class="meta-row">
+            <span class="pill">${runner.category || "-"}</span>
+            <span class="pill">페이스 ${runner.pace || "-"}</span>
+          </div>
+
+          <div class="card-time">${runner.official_time || "-"}</div>
+
+          <div class="estimate-box">
+            <div class="muted">예상 완주 시간</div>
+            <div class="estimate-time">${runner.estimated_finish || "-"}</div>
+          </div>
+
+          <div class="last-point">
+            마지막 구간: <strong>${lastPoint}</strong>
+          </div>
+
+          <div class="card-actions">
+            <a class="btn-link" href="/runner?keyword=${encodeURIComponent(runner.bib || "")}&usedata=${encodeURIComponent(runner.usedata || "")}">
+              상세 보기
+            </a>
+
+            <form action="/favorites/delete" method="post">
+              <input type="hidden" name="bib" value="${runner.bib || ""}">
+              <input type="hidden" name="usedata" value="${runner.usedata || ""}">
+              <button type="submit" class="danger-btn">삭제</button>
+            </form>
+          </div>
+        </article>
+      `;
+    }
+
+    async function refreshDashboard() {
+      try {
+        refreshStatus.textContent = "업데이트 중...";
+
+        const race = raceFilter.value;
+        const q = runnerSearch.value;
+
+        const url = `/dashboard/data?race=${encodeURIComponent(race)}&q=${encodeURIComponent(q)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const runners = data.runners || [];
+        const races = data.race_names || [];
+
+        const currentRace = raceFilter.value;
+        raceFilter.innerHTML = `<option value="">전체 대회</option>` +
+          races.map(name => `<option value="${name}">${name}</option>`).join("");
+
+        raceFilter.value = currentRace;
+
+        if (runners.length === 0) {
+          dashboardCards.innerHTML = '<section class="card"><p>조건에 맞는 선수가 없어.</p></section>';
+        } else {
+          dashboardCards.innerHTML = runners.map(buildCard).join("");
+        }
+
+        refreshStatus.textContent = "업데이트 완료";
+        lastUpdated.textContent = `마지막 업데이트: ${data.last_updated || "-"}`;
+      } catch (e) {
+        refreshStatus.textContent = "업데이트 실패";
+      }
+    }
+
+    raceFilter.addEventListener("change", refreshDashboard);
+
+    let searchTimer = null;
+    runnerSearch.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(refreshDashboard, 300);
+    });
+
+    setInterval(refreshDashboard, 10000);
+  </script>
+</body>
+</html>

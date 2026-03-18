@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>배번 추적기</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="card hero">
+      <h1>마라톤 배번 추적기</h1>
+      <p class="sub">대회를 선택하고 이름 또는 배번으로 검색해.</p>
+
+      <form action="/runner" method="get" class="search-form">
+        <label>
+          <span>대회</span>
+          <select name="usedata" required>
+            {% for race in race_options %}
+            <option value="{{ race.usedata }}">{{ race.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          <span>이름 또는 배번</span>
+          <input type="text" name="keyword" placeholder="예: 이도권 또는 15496" required>
+        </label>
+
+        <button type="submit">조회하기</button>
+      </form>
+
+      <div class="link-row">
+        <a href="/dashboard">즐겨찾기 대시보드 보기</a>
+      </div>
+
+      {% if error %}
+      <div class="error-box">{{ error }}</div>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>

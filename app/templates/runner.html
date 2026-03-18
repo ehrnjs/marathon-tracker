@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ runner.name }} - 배번 추적기</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <div class="top-nav">
+      <a href="/">← 다시 검색</a>
+      <a href="/dashboard">대시보드</a>
+    </div>
+
+    <section class="card runner-summary">
+      <div>
+        <div class="muted">{{ runner.race_name }}</div>
+        <h1>{{ runner.name }}</h1>
+        <div class="meta-row">
+          <span class="pill">배번 {{ runner.bib }}</span>
+          <span class="pill">{{ runner.category }}</span>
+        </div>
+      </div>
+
+      <div class="big-time-box">
+        <div class="muted">공식기록</div>
+        <div class="big-time">{{ runner.official_time or "-" }}</div>
+      </div>
+    </section>
+
+    <section class="card stats-grid">
+      <div class="stat-card">
+        <div class="muted">평균 페이스</div>
+        <div class="stat-value">{{ runner.pace or "-" }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="muted">평균 속도</div>
+        <div class="stat-value">{{ runner.speed or "-" }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="muted">예상 완주 시간</div>
+        <div class="stat-value">{{ runner.estimated_finish or "-" }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="muted">마지막 구간</div>
+        <div class="stat-value">{{ runner.last_point or "-" }}</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <form action="/favorites/add" method="post">
+        <input type="hidden" name="bib" value="{{ runner.bib }}">
+        <input type="hidden" name="usedata" value="{{ runner.usedata }}">
+        <button type="submit">즐겨찾기에 추가</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>구간 기록</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>구간</th>
+              <th>누적 시간</th>
+              <th>통과 시각</th>
+              <th>페이스</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in runner.splits %}
+            <tr>
+              <td>{{ row.point }}</td>
+              <td>{{ row.time }}</td>
+              <td>{{ row.time_of_day }}</td>
+              <td>{{ row.pace }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
