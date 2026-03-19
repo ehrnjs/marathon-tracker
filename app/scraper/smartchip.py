@@ -133,6 +133,61 @@ def _extract_chart_paces(soup: BeautifulSoup) -> list[dict[str, str]]:
     return result
 
 
+def _build_candidate_from_text(text: str, usedata: str) -> dict[str, str] | None:
+    cleaned = _clean_text(text)
+    if not cleaned:
+        return None
+
+    bib_match = re.search(r"\b(\d{3,})\b", cleaned)
+    if not bib_match:
+        return None
+
+    bib = bib_match.group(1)
+    name = cleaned.replace(bib, "").replace("BIB", "").strip(" -:/")
+    if not name:
+        name = f"후보 {bib}"
+
+    return {
+        "name": name,
+        "bib": bib,
+        "usedata": usedata,
+        "label": cleaned,
+    }
+
+
+def extract_search_candidates(html: str, usedata: str) -> list[dict[str, str]]:
+    soup = BeautifulSoup(html, "html.parser")
+    candidates: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    # 링크/버튼/행 전체에서 bib 후보 찾기
+    text_nodes = []
+
+    for tag in soup.find_all(["a", "button", "tr", "li", "td", "div"]):
+        text = _clean_text(tag.get_text(" ", strip=True))
+        if text:
+            text_nodes.append(text)
+
+    for text in text_nodes:
+        candidate = _build_candidate_from_text(text, usedata)
+        if not candidate:
+            continue
+
+        key = (candidate["name"], candidate["bib"])
+        if key in seen:
+            continue
+
+        # 너무 짧거나 의미 없는 텍스트 제거
+        if len(candidate["label"]) < 3:
+            continue
+
+        seen.add(key)
+        candidates.append(candidate)
+
+    # 이름 검색 결과로 보기 어렵게 너무 많으면 과감히 제한
+    return candidates[:30]
+
+
 def fetch_runner_data(bib: str, usedata: str | None = None) -> dict[str, Any]:
     params = {"nameorBibno": bib}
     if usedata:
@@ -146,7 +201,7 @@ def fetch_runner_data(bib: str, usedata: str | None = None) -> dict[str, Any]:
         )
     }
 
-    response = requests.get(SMARTCHIP_URL, params=params, headers=headers, timeout=15)
+    response = requests.get(SMARTCHIP_URL, params=params, headers=headers, timeout=20)
     response.raise_for_status()
     html = response.text
 
@@ -155,10 +210,13 @@ def fetch_runner_data(bib: str, usedata: str | None = None) -> dict[str, Any]:
 
     soup = BeautifulSoup(html, "html.parser")
 
+    container = soup.find("td", class_="recevedata")
+    if not container:
+        raise SmartChipError("기록 페이지를 찾지 못했어. 배번이나 대회 ID를 확인해줘.")
+
     race_name = _extract_race_name(soup)
     name, returned_bib, category = _extract_name_bib_category(soup)
 
-    container = soup.find("td", class_="recevedata")
     container_text = _clean_text(container.get_text(" ", strip=True)) if container else ""
     pace, speed = _extract_pace_speed(container_text)
 
@@ -183,3 +241,48 @@ def fetch_runner_data(bib: str, usedata: str | None = None) -> dict[str, Any]:
         "chart_paces": chart_paces,
         "usedata": usedata or "",
     }
+
+
+def search_runner_or_candidates(keyword: str, usedata: str | None = None) -> dict[str, Any]:
+    # 숫자만이면 배번으로 간주 -> 바로 상세 조회
+    if keyword.isdigit():
+        return {
+            "type": "runner",
+            "data": fetch_runner_data(keyword, usedata),
+        }
+
+    params = {"nameorBibno": keyword}
+    if usedata:
+        params["usedata"] = usedata
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/127.0.0.0 Safari/537.36"
+        )
+    }
+
+    response = requests.get(SMARTCHIP_URL, params=params, headers=headers, timeout=20)
+    response.raise_for_status()
+    html = response.text
+
+    # 상세 페이지면 바로 파싱 시도
+    try:
+        runner = fetch_runner_data(keyword, usedata)
+        return {
+            "type": "runner",
+            "data": runner,
+        }
+    except Exception:
+        pass
+
+    # 상세가 아니면 후보 목록 추출 시도
+    candidates = extract_search_candidates(html, usedata or "")
+    if candidates:
+        return {
+            "type": "candidates",
+            "data": candidates,
+        }
+
+    raise SmartChipError("이름 검색 결과를 찾지 못했어. 배번으로 검색하거나 이름 표기를 다시 확인해줘.")

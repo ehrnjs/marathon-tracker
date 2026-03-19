@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>이름 검색 결과</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <div class="top-nav">
+      <a href="/">← 다시 검색</a>
+      <a href="/dashboard">대시보드</a>
+    </div>
+
+    <section class="card">
+      <h1>이름 검색 결과</h1>
+      <p class="sub">
+        "{{ keyword }}" 검색 결과가 여러 명이어서 선택이 필요해.
+      </p>
+    </section>
+
+    {% if candidates %}
+      <section class="dashboard-grid">
+        {% for candidate in candidates %}
+        <article class="card runner-card">
+          <div class="runner-card-top">
+            <div>
+              <div class="muted">후보 선택</div>
+              <h2>{{ candidate.name }}</h2>
+            </div>
+            <div class="small-pill">배번 {{ candidate.bib }}</div>
+          </div>
+
+          <p class="muted" style="margin-top: 12px;">{{ candidate.label }}</p>
+
+          <div class="card-actions">
+            <a class="btn-link" href="/runner?keyword={{ candidate.bib }}&usedata={{ candidate.usedata }}">
+              이 선수 보기
+            </a>
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+    {% else %}
+      <section class="card">
+        <p>선택 가능한 후보를 찾지 못했어.</p>
+      </section>
+    {% endif %}
+  </main>
+</body>
+</html>
